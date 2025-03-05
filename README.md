@@ -2,8 +2,8 @@
 
 1. sgn处理shellcode，实现自解密
 2. 套用[github.com/joaoviictorti/RustRedOps/tree/main/Local_Payload_Exec...](https://github.com/joaoviictorti/RustRedOps/tree/main/Local_Payload_Execution)的代码
-3. https://github.com/johnthagen/min-sized-rust减少生成大小
-4. 使用https://github.com/threatexpress/metatwin将白文件的文件资源克隆到我们生成的🐎
+3. https://github.com/johnthagen/min-sized-rust 减少生成大小
+4. 使用 https://github.com/threatexpress/metatwin 将白文件的文件资源克隆到我们生成的🐎
 
 # 目录结构
 
