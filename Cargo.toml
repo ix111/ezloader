@@ -1,0 +1,13 @@
+[package]
+name = "ezloader"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+windows = { version = "0.60.0", features = ["Win32_System_Memory", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_Globalization"] }
+
+[profile.release]
+opt-level = "z"  # Optimize for size.
+lto = true
+codegen-units = 1
+panic = "abort"
