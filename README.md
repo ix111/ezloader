@@ -28,7 +28,17 @@
 
 ------
 
-2025/3/5
+## 2025/3/10
+
+使用 https://github.com/aahmad097/AlternativeShellcodeExec/tree/master/EnumCalendarInfo 回调函数执行shellcode
+
+![vt](img/3-10-vt.png)
+
+![vt](img/3-10-360.png)
+
+![vt](img/3-10-cs.png)
+
+## 2025/3/5
 
 ![vt](img/vt.png)
 
