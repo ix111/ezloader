@@ -1,59 +1,35 @@
-没啥技术含量的免杀🐎生成，流程如下。
+# ezloader
 
-1. sgn处理shellcode，实现自解密
-2. 套用[github.com/joaoviictorti/RustRedOps/tree/main/Local_Payload_Exec...](https://github.com/joaoviictorti/RustRedOps/tree/main/Local_Payload_Execution)的代码
-3. https://github.com/johnthagen/min-sized-rust 减少生成大小
-4. 使用 https://github.com/threatexpress/metatwin 将白文件的文件资源克隆到我们生成的🐎
+一个ez的shellcode loader，会慢慢改进
 
-# 目录结构
+## Features
 
-------
+- 在 PNG 文件中嵌入shellcode并且使用RC4加密
+- HTTP/S PNG 暂存
+- 使用 EnumSystemLocalesEx 回调函数执行shellcode
 
-```undefined
-├─metatwin					# https://github.com/threatexpress/metatwin 项目文件
-├─sgn_windows_amd64_2.0.1	# sgn 可执行文件
-├─src						# 源码
-└─target					# 生成的exe
-```
+## Usage
 
-# 使用方法
+1. 使用EmbedPayloadInPng.py生成带有shellcode的png
 
-------
+   ![1](img/1.png)
 
-将你生成的恶意shellcode放到src目录下，命名为beacon_x64.bin，然后运行一键生成.bat。
+2. 复制`EmbedPayloadInPng.py`输出的MARKED_IDAT_HASH常量定义替换`src/main.rc`里现有的定义。
+3. 将生成带有shellcode的png图片，放置web服务器上。
+4. 编译运行，也可以直接运行`一键生成.bat`，会在metatwin下生成带有图标等其他资源的exe。
 
-最终生成的exe在metatwin目录下以时间戳命名的目录下
+## Testing with Havoc and the Latest Windows Defender
 
-# 测试
+![test](img/test.png)
 
-------
 
-## 2025/3/10
 
-使用 https://github.com/aahmad097/AlternativeShellcodeExec/tree/master/EnumCalendarInfo 回调函数执行shellcode
-
-![vt](img/3-10-vt.png)
-
-![vt](img/3-10-360.png)
-
-![vt](img/3-10-cs.png)
-
-## 2025/3/5
-
-![vt](img/vt.png)
-
-![vt](img/360.png)
-
-![vt](img/cs.png)
-
-# 参考
-
-------
+## References and acknowledgments
 
 https://github.com/threatexpress/metatwin
 
 https://github.com/johnthagen/min-sized-rust
 
-https://github.com/joaoviictorti/RustRedOps/tree/main/Local_Payload_Execution
+https://github.com/joaoviictorti/RustRedOps
 
-https://github.com/EgeBalci/sgn
+https://github.com/Maldev-Academy/EmbedPayloadInPng
