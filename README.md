@@ -1,7 +1,7 @@
 # ezloader
 
 一个ez的shellcode loader，会慢慢改进
-
+![diagram](img/diagram.png)
 ## Features
 
 - 在 PNG 文件中嵌入shellcode并且使用RC4加密
